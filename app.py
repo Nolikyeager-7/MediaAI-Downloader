@@ -9,6 +9,11 @@ st.set_page_config(page_title="MediaAI Clip Downloader", page_icon="🎬", layou
 st.title("🎬 MediaAI - YouTube Clip Downloader")
 st.write("Cut and extract any video or audio clip online!")
 
+# Write secrets cookie to file if available
+if "YOUTUBE_COOKIES" in st.secrets:
+    with open("cookies.txt", "w") as f:
+        f.write(st.secrets["YOUTUBE_COOKIES"])
+
 video_url = st.text_input("Paste YouTube URL:", "")
 
 col1, col2 = st.columns(2)
@@ -38,34 +43,27 @@ if st.button("🚀 Download Clip"):
         temp_file = f"raw_video.{ext}"
         final_file = f"{output_name}.{ext}"
 
-        # Clean old files
         for f in [temp_file, final_file]:
             if os.path.exists(f):
                 os.remove(f)
 
         try:
-            # Flexible format & 403 Forbidden bypass
             ydl_opts = {
-                'format': 'bestaudio/best' if mode == 'audio' else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'format': 'bestaudio/best' if mode == 'audio' else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
                 'outtmpl': temp_file,
                 'nocheckcertificate': True,
                 'quiet': True,
+                'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['ios', 'mweb', 'android']
+                        'player_client': ['android', 'ios']
                     }
-                },
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-us,en;q=0.5',
                 }
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([cleaned_url])
 
-            # Trim clip using FFmpeg
             if os.path.exists(temp_file):
                 ffmpeg_cmd = [
                     "ffmpeg", "-y",
@@ -76,7 +74,7 @@ if st.button("🚀 Download Clip"):
                     final_file
                 ]
                 
-                res = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+                subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
 
                 if os.path.exists(final_file):
                     st.success("🎉 Clip Ready!")
@@ -95,6 +93,5 @@ if st.button("🚀 Download Clip"):
         except Exception as e:
             st.error(f"Error details: {e}")
 
-        # Cleanup temporary files
         if os.path.exists(temp_file):
             os.remove(temp_file)
