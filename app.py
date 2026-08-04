@@ -1,7 +1,6 @@
 import streamlit as st
-import sys
-import subprocess
 import os
+import yt_dlp
 
 st.set_page_config(page_title="MediaAI Clip Downloader", page_icon="🎬", layout="centered")
 
@@ -12,12 +11,12 @@ video_url = st.text_input("Paste YouTube URL:", "")
 
 col1, col2 = st.columns(2)
 with col1:
-    start_time = st.text_input("Start Time (HH:MM:SS):", "00:00:10")
+    start_time = st.text_input("Start Time (HH:MM:SS):", "00:01:50")
 with col2:
-    end_time = st.text_input("End Time (HH:MM:SS):", "00:00:20")
+    end_time = st.text_input("End Time (HH:MM:SS):", "00:01:54")
 
 mode = st.radio("Select Format:", ["audio", "video"], horizontal=True)
-output_name = st.text_input("Output File Name:", "my_clip")
+output_name = st.text_input("Output File Name:", "MyClip")
 
 if st.button("🚀 Download Clip"):
     if not video_url:
@@ -25,32 +24,42 @@ if st.button("🚀 Download Clip"):
     else:
         st.info("Downloading clip... Please wait!")
         
-        if mode == "audio":
-            format_spec = "bestaudio[ext=m4a]/bestaudio/best"
-            ext = "m4a"
-            extra_args = []
-        else:
-            format_spec = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-            ext = "mp4"
-            extra_args = []
-
+        # Standardize output filename
+        ext = "m4a" if mode == "audio" else "mp4"
         output_file = f"{output_name}.{ext}"
 
-        command = [
-            sys.executable, "-m", "yt_dlp",
-            "--download-sections", f"*{start_time}-{end_time}",
-            "-f", format_spec,
-            "--force-keyframes-at-cuts",
-            *extra_args,
-            "-o", output_file,
-            video_url
-        ]
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+        # Time string to seconds helper
+        def to_seconds(t_str):
+            parts = list(map(int, t_str.split(':')))
+            if len(parts) == 3:
+                return parts[0] * 3600 + parts[1] * 60 + parts[2]
+            elif len(parts) == 2:
+                return parts[0] * 60 + parts[1]
+            return parts[0]
 
         try:
-            subprocess.run(command, check=True)
-            st.success("Clip ready!")
-            
+            start_sec = to_seconds(start_time)
+            end_sec = to_seconds(end_time)
+
+            ydl_opts = {
+                'format': 'best' if mode == 'video' else 'bestaudio/best',
+                'outtmpl': output_file,
+                'download_ranges': yt_dlp.utils.download_range_func(None, [(start_sec, end_sec)]),
+                'force_keyframes_at_cuts': True,
+                'nocheckcertificate': True,
+                'ignoreerrors': True,
+                'quiet': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+
             if os.path.exists(output_file):
+                st.success("Clip ready!")
                 with open(output_file, "rb") as file:
                     st.download_button(
                         label="📥 Download to Device",
@@ -58,5 +67,8 @@ if st.button("🚀 Download Clip"):
                         file_name=output_file,
                         mime="audio/mp4" if mode == "audio" else "video/mp4"
                     )
+            else:
+                st.error("Could not process video clip. Please check the URL/timestamps.")
+
         except Exception as e:
             st.error(f"Error: {e}")
