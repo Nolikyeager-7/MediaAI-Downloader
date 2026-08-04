@@ -44,9 +44,9 @@ if st.button("🚀 Download Clip"):
                 os.remove(f)
 
         try:
-            # Bypass HTTP 403 Forbidden & Server Block
+            # Flexible format & 403 Forbidden bypass
             ydl_opts = {
-                'format': '140' if mode == 'audio' else '18',
+                'format': 'bestaudio/best' if mode == 'audio' else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': temp_file,
                 'nocheckcertificate': True,
                 'quiet': True,
