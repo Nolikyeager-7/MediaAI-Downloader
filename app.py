@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import re
+import subprocess
 import yt_dlp
 
 st.set_page_config(page_title="MediaAI Clip Downloader", page_icon="🎬", layout="centered")
@@ -30,51 +31,58 @@ if st.button("🚀 Download Clip"):
     if not video_url:
         st.error("Please enter a valid YouTube URL!")
     else:
-        st.info("Downloading clip... Please wait!")
+        st.info("Downloading and processing clip... Please wait!")
         
         cleaned_url = clean_youtube_url(video_url)
         ext = "m4a" if mode == "audio" else "mp4"
-        output_file = f"{output_name}.{ext}"
+        temp_file = f"raw_video.{ext}"
+        final_file = f"{output_name}.{ext}"
 
-        if os.path.exists(output_file):
-            os.remove(output_file)
-
-        def to_seconds(t_str):
-            parts = list(map(int, t_str.split(':')))
-            if len(parts) == 3:
-                return parts[0] * 3600 + parts[1] * 60 + parts[2]
-            elif len(parts) == 2:
-                return parts[0] * 60 + parts[1]
-            return parts[0]
+        for f in [temp_file, final_file]:
+            if os.path.exists(f):
+                os.remove(f)
 
         try:
-            start_sec = to_seconds(start_time)
-            end_sec = to_seconds(end_time)
-
             ydl_opts = {
-                # Simple single-file format so FFmpeg merging/conversion doesn't crash
-                'format': '140' if mode == 'audio' else '18/135+140/best',
-                'outtmpl': output_file,
-                'download_ranges': yt_dlp.utils.download_range_func(None, [(start_sec, end_sec)]),
-                'force_keyframes_at_cuts': False,  # Fixes Exit Code 8 crash!
+                'format': '140' if mode == 'audio' else '18',
+                'outtmpl': temp_file,
                 'nocheckcertificate': True,
+                'quiet': True,
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([cleaned_url])
 
-            if os.path.exists(output_file):
-                st.success("🎉 Clip ready!")
-                with open(output_file, "rb") as file:
-                    st.download_button(
-                        label="📥 Download to Device",
-                        data=file,
-                        file_name=output_file,
-                        mime="audio/mp4" if mode == "audio" else "video/mp4"
-                    )
+            if os.path.exists(temp_file):
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y",
+                    "-ss", start_time,
+                    "-to", end_time,
+                    "-i", temp_file,
+                    "-c", "copy",
+                    final_file
+                ]
+                
+                res = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+
+                if os.path.exists(final_file):
+                    st.success("🎉 Clip Ready!")
+                    with open(final_file, "rb") as file:
+                        st.download_button(
+                            label="📥 Download to Device",
+                            data=file,
+                            file_name=final_file,
+                            mime="audio/mp4" if mode == "audio" else "video/mp4"
+                        )
+                else:
+                    st.error("Trimming failed. Check timestamps.")
             else:
-                st.error("File processing failed. Please try again.")
+                st.error("Failed to fetch YouTube stream.")
 
         except Exception as e:
-            st.error(f"Error details: {e}")
+            err_msg = str(e)
+            st.error(f"Error details: {err_msg}")
+
+        if os.path.exists(temp_file):
+         os.remove(temp_file)
