@@ -12,7 +12,7 @@ video_url = st.text_input("Paste YouTube URL:", "")
 
 col1, col2 = st.columns(2)
 with col1:
-    start_time = st.text_input("Start Time (HH:MM:SS):", "00:01:50")
+    start_time = st.text_input("Start Time (HH:MM:SS):", "00:01:00")
 with col2:
     end_time = st.text_input("End Time (HH:MM:SS):", "00:02:00")
 
@@ -20,7 +20,6 @@ mode = st.radio("Select Format:", ["audio", "video"], horizontal=True)
 output_name = st.text_input("Output File Name:", "MyClip")
 
 def clean_youtube_url(url):
-    # Convert /live/ links to standard watch links & remove ?si= parameters
     url = url.split("?si=")[0].split("&")[0]
     match = re.search(r'(?:v=|\/live\/|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})', url)
     if match:
@@ -53,13 +52,12 @@ if st.button("🚀 Download Clip"):
             end_sec = to_seconds(end_time)
 
             ydl_opts = {
-                'format': 'best' if mode == 'video' else 'bestaudio/best',
+                # Simple single-file format so FFmpeg merging/conversion doesn't crash
+                'format': '140' if mode == 'audio' else '18/135+140/best',
                 'outtmpl': output_file,
                 'download_ranges': yt_dlp.utils.download_range_func(None, [(start_sec, end_sec)]),
-                'force_keyframes_at_cuts': True,
+                'force_keyframes_at_cuts': False,  # Fixes Exit Code 8 crash!
                 'nocheckcertificate': True,
-                'ignoreerrors': False,
-                'quiet': False,
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             }
 
@@ -67,7 +65,7 @@ if st.button("🚀 Download Clip"):
                 ydl.download([cleaned_url])
 
             if os.path.exists(output_file):
-                st.success("Clip ready!")
+                st.success("🎉 Clip ready!")
                 with open(output_file, "rb") as file:
                     st.download_button(
                         label="📥 Download to Device",
@@ -76,7 +74,7 @@ if st.button("🚀 Download Clip"):
                         mime="audio/mp4" if mode == "audio" else "video/mp4"
                     )
             else:
-                st.error("File generation failed. Try a normal video link (not live).")
+                st.error("File processing failed. Please try again.")
 
         except Exception as e:
             st.error(f"Error details: {e}")
