@@ -48,17 +48,13 @@ if st.button("🚀 Download Clip"):
                 os.remove(f)
 
         try:
+            # Super flexible format selection to prevent 'Requested format is not available'
             ydl_opts = {
-                'format': 'bestaudio/best' if mode == 'audio' else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+                'format': 'bestaudio/best' if mode == 'audio' else 'bestvideo+bestaudio/best',
                 'outtmpl': temp_file,
                 'nocheckcertificate': True,
                 'quiet': True,
                 'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'ios']
-                    }
-                }
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
